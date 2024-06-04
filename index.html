@@ -6,7 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Busca de Empregos</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
+    <style>
+        th {
+            cursor: pointer;
+        }
+    </style>
 </head>
 
 <body>
@@ -74,6 +80,7 @@
         let currentPage = 1;
         const resultsPerPage = 20;
         const maxVisiblePages = 10;
+        let currentJobs = [];
 
         document.getElementById('job-search-form').addEventListener('submit', function (event) {
             event.preventDefault();
@@ -82,24 +89,13 @@
             const query = document.getElementById('query').value.trim();
             const country = document.getElementById('country').value.trim();
 
-            const queryError = document.getElementById('query-error');
-            const countryError = document.getElementById('country-error');
-
             if (query === '') {
                 showErrorModal('Campo Vaga desejada é obrigatório');
-            } else {
-                queryError.textContent = '';
-            }
-
-            if (country === '') {
+            } else if (country === '') {
                 showErrorModal('Campo País é obrigatório');
             } else if (country.length !== 2) {
                 showErrorModal('Campo País deve ter exatamente 2 caracteres');
             } else {
-                countryError.textContent = '';
-            }
-
-            if (query !== '' && country !== '' && country.length === 2) {
                 fetchJobs();
             }
         });
@@ -108,14 +104,15 @@
             showSpinner();
             const query = document.getElementById('query').value;
             const country = document.getElementById('country').value;
-            const appID = 'c236b913';
-            const appKey = 'cf1765af89da25e206f60f299b85e2d6';
+            const appID = 'xxx';
+            const appKey = 'xxxx';
             const apiUrl = `https://api.adzuna.com/v1/api/jobs/${country}/search/${currentPage}?app_id=${appID}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${query}`;
 
             try {
                 const response = await fetch(apiUrl);
                 const data = await response.json();
-                displayResults(data.results);
+                currentJobs = data.results; // Armazena os trabalhos na variável currentJobs
+                displayResults(currentJobs);
                 updatePagination(data.count);
             } catch (error) {
                 console.error('Erro ao buscar dados:', error);
@@ -139,10 +136,10 @@
             table.innerHTML = `
                 <thead>
                     <tr>
-                        <th>Título</th>
-                        <th>Empresa</th>
-                        <th>Localização</th>
-                        <th>Salário</th>
+                        <th onclick="sortColumn('title')">Título <i class="fas fa-sort"></i></th>
+                        <th onclick="sortColumn('company.display_name')">Empresa <i class="fas fa-sort"></i></th>
+                        <th onclick="sortColumn('location.display_name')">Localização <i class="fas fa-sort"></i></th>
+                        <th onclick="sortColumn('salary_min')">Salário <i class="fas fa-sort"></i></th>
                         <th>Link</th>
                     </tr>
                 </thead>
@@ -213,7 +210,7 @@
                 navbar.style.visibility = 'hidden';
             }
 
-            if (scrollTop == 0) {
+            if (scrollTop === 0) {
                 // Rolar para cima
                 navbar.style.visibility = 'visible';
             }
@@ -225,6 +222,73 @@
             const errorModalMessage = document.getElementById('errorModalMessage');
             errorModalMessage.textContent = message;
             $('#errorModal').modal('show');
+        }
+
+        let currentSortColumn = ''; // Variável para rastrear a coluna atualmente ordenada
+        let isAscending = true; // Variável para rastrear se a ordem atual é ascendente
+
+        function sortColumn(column) {
+            // Verifica se a coluna atual é a mesma que a coluna clicada
+            if (column === currentSortColumn) {
+                // Inverte a ordem (ascendente para descendente e vice-versa)
+                isAscending = !isAscending;
+            } else {
+                // Define a nova coluna de ordenação e a ordem ascendente
+                currentSortColumn = column;
+                isAscending = true;
+            }
+
+            // Ordena os resultados com base na coluna selecionada e na ordem
+            const sortedJobs = [...currentJobs].sort((a, b) => {
+                const valueA = getColumnValue(a, column);
+                const valueB = getColumnValue(b, column);
+
+                if (valueA < valueB) {
+                    return isAscending ? -1 : 1;
+                }
+                if (valueA > valueB) {
+                    return isAscending ? 1 : -1;
+                }
+                return 0;
+            });
+
+            // Atualiza os resultados exibidos na página
+            displayResults(sortedJobs);
+
+            // Atualiza os ícones de ordenação
+            updateSortIcons(column);
+        }
+
+        function getColumnValue(obj, column) {
+            const keys = column.split('.');
+            let value = obj;
+
+            for (let key of keys) {
+                value = value[key];
+            }
+
+            return value !== undefined ? value : 'N/A';
+        }
+
+        function updateSortIcons(column) {
+            const headers = document.querySelectorAll('th');
+            headers.forEach(header => {
+                const icon = header.querySelector('.fas');
+                if (icon) {
+                    if (header.innerText.includes(column)) {
+                        if (isAscending) {
+                            icon.classList.remove('fa-sort', 'fa-sort-down');
+                            icon.classList.add('fa-sort-up');
+                        } else {
+                            icon.classList.remove('fa-sort', 'fa-sort-up');
+                            icon.classList.add('fa-sort-down');
+                        }
+                    } else {
+                        icon.classList.remove('fa-sort-up', 'fa-sort-down');
+                        icon.classList.add('fa-sort');
+                    }
+                }
+            });
         }
     </script>
 
