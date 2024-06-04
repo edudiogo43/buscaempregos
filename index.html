@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Busca de Empregos</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="#">Busca de Empregos</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <form id="job-search-form" class="form-inline ml-auto">
+                    <input id="query" type="text" class="form-control mr-2" placeholder="Digite a vaga desejada">
+                    <div id="query-error" class="text-danger"></div> <!-- Elemento para exibir erro de vaga -->
+                    <input id="country" maxlength="2" type="text" class="form-control mr-2"
+                        placeholder="Digite o país (ex: us, br, uk)">
+                    <div id="country-error" class="text-danger"></div> <!-- Elemento para exibir erro de país -->
+                    <button type="submit" class="btn btn-primary">Buscar</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container content">
+        <div id="pagination-top" class="row justify-content-center">
+            <nav aria-label="Page navigation">
+                <ul id="pagination-top-list" class="pagination">
+                    <!-- Links de paginação serão inseridos aqui -->
+                </ul>
+            </nav>
+        </div>
+        <div id="spinner-overlay" class="spinner-overlay d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Carregando...</span>
+            </div>
+        </div>
+        <div id="results" class="table-responsive mt-4">
+            <!-- Resultados da busca serão inseridos aqui -->
+        </div>
+        <nav aria-label="Page navigation" class="d-flex justify-content-center mt-4">
+            <ul id="pagination" class="pagination">
+                <!-- Links de paginação serão inseridos aqui -->
+            </ul>
+        </nav>
+    </div>
+
+    <div class="modal fade" id="errorModal" tabindex="-1" role="dialog" aria-labelledby="errorModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="errorModalLabel">Erro</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorModalMessage"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        const resultsPerPage = 20;
+        const maxVisiblePages = 10;
+
+        document.getElementById('job-search-form').addEventListener('submit', function (event) {
+            event.preventDefault();
+            currentPage = 1; // Resetar para a primeira página ao fazer uma nova busca
+
+            const query = document.getElementById('query').value.trim();
+            const country = document.getElementById('country').value.trim();
+
+            const queryError = document.getElementById('query-error');
+            const countryError = document.getElementById('country-error');
+
+            if (query === '') {
+                showErrorModal('Campo Vaga desejada é obrigatório');
+            } else {
+                queryError.textContent = '';
+            }
+
+            if (country === '') {
+                showErrorModal('Campo País é obrigatório');
+            } else if (country.length !== 2) {
+                showErrorModal('Campo País deve ter exatamente 2 caracteres');
+            } else {
+                countryError.textContent = '';
+            }
+
+            if (query !== '' && country !== '' && country.length === 2) {
+                fetchJobs();
+            }
+        });
+
+        async function fetchJobs() {
+            showSpinner();
+            const query = document.getElementById('query').value;
+            const country = document.getElementById('country').value;
+            const appID = 'c236b913';
+            const appKey = 'cf1765af89da25e206f60f299b85e2d6';
+            const apiUrl = `https://api.adzuna.com/v1/api/jobs/${country}/search/${currentPage}?app_id=${appID}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${query}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                displayResults(data.results);
+                updatePagination(data.count);
+            } catch (error) {
+                console.error('Erro ao buscar dados:', error);
+                alert('Ocorreu um erro ao buscar os dados. Por favor, tente novamente.');
+            } finally {
+                hideSpinner();
+            }
+        }
+
+        function displayResults(jobs) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (jobs.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-center">Nenhuma vaga encontrada.</p>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.className = 'table table-bordered table-striped';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Empresa</th>
+                        <th>Localização</th>
+                        <th>Salário</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${jobs.map(job => `
+                        <tr>
+                            <td>${job.title}</td>
+                            <td>${job.company.display_name}</td>
+                            <td>${job.location.display_name}</td>
+                            <td>${job.salary_min ? job.salary_min : 'N/A'} - ${job.salary_max ? job.salary_max : 'N/A'}</td>
+                            <td><a href="${job.redirect_url}" target="_blank" class="btn btn-primary">Detalhe</a></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            resultsDiv.appendChild(table);
+        }
+
+        function updatePagination(totalResults) {
+            const totalPages = Math.ceil(totalResults / resultsPerPage);
+            const paginationUl = document.getElementById('pagination');
+            const paginationTopUl = document.getElementById('pagination-top-list');
+
+            // Limpar os elementos antigos da paginação
+            paginationUl.innerHTML = '';
+            paginationTopUl.innerHTML = '';
+
+            const startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            for (let i = startPage; i <= endPage; i++) {
+                const li = document.createElement('li');
+                li.className = 'page-item' + (i === currentPage ? ' active' : '');
+                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+
+                paginationUl.appendChild(li.cloneNode(true));
+                paginationTopUl.appendChild(li.cloneNode(true));
+            }
+        }
+
+        document.addEventListener('click', function (event) {
+            if (event.target.classList.contains('page-link')) {
+                event.preventDefault();
+                const pageNumber = parseInt(event.target.textContent);
+                if (pageNumber !== currentPage) {
+                    currentPage = pageNumber;
+                    fetchJobs();
+                }
+            }
+        });
+
+        function showSpinner() {
+            document.getElementById('spinner-overlay').classList.remove('d-none');
+        }
+
+        function hideSpinner() {
+            document.getElementById('spinner-overlay').classList.add('d-none');
+        }
+
+        let lastScrollTop = 0;
+        const navbar = document.querySelector('.navbar');
+
+        window.addEventListener('scroll', function () {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (scrollTop > lastScrollTop && scrollTop > 50) {
+                // Rolar para baixo
+                navbar.style.visibility = 'hidden';
+            }
+
+            if (scrollTop == 0) {
+                // Rolar para cima
+                navbar.style.visibility = 'visible';
+            }
+
+            lastScrollTop = scrollTop;
+        });
+
+        function showErrorModal(message) {
+            const errorModalMessage = document.getElementById('errorModalMessage');
+            errorModalMessage.textContent = message;
+            $('#errorModal').modal('show');
+        }
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+
+</html>
